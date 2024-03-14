@@ -7,7 +7,7 @@ from langchain_community.vectorstores import FAISS
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain.chains import AnalyzeDocumentChain
 from langchain_community.callbacks import get_openai_callback
-from langchain_community.document_loaders import PyPDFLoader
+from langchain_community.document_loaders import PyPDF2Loader
 from langchain.chains.question_answering import load_qa_chain
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langchain_core.output_parsers import StrOutputParser
@@ -15,7 +15,7 @@ from langchain_core.prompts import ChatPromptTemplate
 
 def load_and_process_document(file_path, user_question):
     # Extract text from the document
-    loader = PyPDFLoader(file_path)
+    loader = PyPDF2Loader(file_path)
     pages = loader.load_and_split()
 
     # Split text into chunks
