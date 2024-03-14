@@ -11,6 +11,7 @@ from langchain.chains.question_answering import load_qa_chain
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_docstore.document import Document
 
 def extract_text_from_pdf(file):
     reader = PdfReader(file)
