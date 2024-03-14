@@ -1,33 +1,37 @@
 import streamlit as st
-import os
-import time
 from PyPDF2 import PdfReader
 from langchain.text_splitter import CharacterTextSplitter
-from langchain_community.vectorstores import FAISS
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-from langchain.chains import AnalyzeDocumentChain
-from langchain_community.callbacks import get_openai_callback
-from langchain_community.document_loaders import PyPDF2Loader
+from langchain.vectorstores import FAISS
 from langchain.chains.question_answering import load_qa_chain
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import ChatPromptTemplate
+from langchain.llms import OpenAI
+from langchain.callbacks import get_openai_callback
+from langchain.chains import AnalyzeDocumentChain
+from langchain.prompts import ChatPromptTemplate
+from langchain.output_parsers import StrOutputParser
 
-def load_and_process_document(file_path, user_question):
+def extract_text_from_pdf(file):
+    reader = PdfReader(file)
+    pages_text = []
+    for page in reader.pages:
+        text = page.extract_text()
+        if text:
+            pages_text.append(text)
+    return pages_text
+
+def load_and_process_document(file, user_question):
     # Extract text from the document
-    loader = PyPDF2Loader(file_path)
-    pages = loader.load_and_split()
+    document_pages = extract_text_from_pdf(file)
 
     # Split text into chunks
     text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-    texts = text_splitter.split_documents(pages)
+    texts = text_splitter.split_documents(document_pages)
 
     # Create vector store
     embeddings = None  # Set to None for using OpenAI's pre-trained embeddings
     vectorstore = FAISS.from_documents(texts, embeddings)
 
     # Create question-answering chain
-    llm = ChatOpenAI(api_key=st.secrets["OPENAI_API_KEY"], model_name="gpt-4-turbo-preview", streaming=True, temperature = 0, callbacks=[get_openai_callback()])
+    llm = OpenAI(model_name="gpt-4-turbo-preview", streaming=True, callbacks=[get_openai_callback()])
     qa_chain = load_qa_chain(llm, chain_type="stuff")
 
     # Perform similarity search and get relevant document chunks
@@ -40,19 +44,19 @@ def load_and_process_document(file_path, user_question):
 
 def process_document(document_text, user_question, qa_chain):
     template = """
-    You are an experienced insurance advisor with in-depth knowledge of policy terms and conditions. Your task is to reliably and accurately analyze and explain specific coverages, exclusions, and conditions based on the text from the loaded policy documents. It is essential that you directly quote and reference relevant information from these documents, including page numbers or section numbers if available.
+    Je bent een ervaren verzekeringsadviseur met diepgaande kennis van polisvoorwaarden. Jouw taak is om op betrouwbare en nauwkeurige wijze dekkingen, uitsluitingen en voorwaarden te analyseren en uit te leggen op basis van de tekst uit de geladen polisdocumenten. Het is essentieel dat je relevante informatie uit deze documenten rechtstreeks citeert en verwijst, inclusief pagina- of sectienummers indien beschikbaar.
 
-    If you encounter a question where the information in the documents is not sufficient to provide a complete analysis, ask for clarification on what needs to be specified to provide a comprehensive answer. For questions that can be easily and directly answered from the text, quote and reference the relevant information directly.
+    Als je een vraag tegenkomt waarbij de informatie in de documenten niet voldoende is om een volledige analyse te geven, vraag dan om verduidelijking over wat er gespecificeerd moet worden om een uitgebreid antwoord te kunnen geven. Voor vragen die gemakkelijk en rechtstreeks uit de tekst beantwoord kunnen worden, citeer en verwijs dan naar de relevante informatie.
 
-    When analyzing coverage, provide a clear explanation of any specific conditions or exclusions that apply. While avoiding unnecessary disclaimers, it is crucial to accurately state and explain the conditions for coverage or exclusion.
+    Bij het analyseren van de dekking, geef een duidelijke uitleg van eventuele specifieke voorwaarden of uitsluitingen die van toepassing zijn. Vermijd onnodige disclaimers, maar het is cruciaal om de voorwaarden voor dekking of uitsluiting nauwkeurig te vermelden en uit te leggen.
 
-    Additionally, always check if there are any specified coverage limits or maximum payouts for the items in question, and explicitly mention these in your analysis. It is critical that this information is accurately presented and not confused with anything else.
+    Controleer altijd of er eventuele specifieke dekking limieten of maximale uitkeringen gelden voor de betreffende posten, en vermeld deze expliciet in je analyse. Het is van cruciaal belang dat deze informatie nauwkeurig wordt gepresenteerd en niet wordt verward met iets anders.
 
-    Pay close attention to any optional coverages or modules that may be mentioned in the policy document, as these can significantly impact the coverage analysis.
+    Let goed op eventuele optionele dekkingen of modules die in het polisdocument worden vermeld, aangezien deze van grote invloed kunnen zijn op de dekkingsanalyse.
 
-    For questions about specific items or scenarios, such as winter sports equipment or hired items on a travel insurance policy, ensure that you clearly distinguish and address any specific coverage conditions or exclusions that apply.
+    Voor vragen over specifieke artikelen of scenario's, zoals wintersportuitrusting of gehuurde artikelen op een reisverzekering, zorg ervoor dat je duidelijk onderscheid maakt en ingaat op eventuele specifieke dekkingsvoorwaarden of uitsluitingen die van toepassing zijn.
 
-    Given the text from the policy terms and conditions: '{document_text}', and the user's question: '{user_question}', how would you analyze and explain the coverage based on the above instructions?
+    Gegeven de tekst uit de polisvoorwaarden: '{document_text}', en de vraag van de gebruiker: '{user_question}', hoe zou je de dekking analyseren en uitleggen op basis van de bovenstaande instructies?
     """
 
     prompt = ChatPromptTemplate.from_template(template)
@@ -61,17 +65,17 @@ def process_document(document_text, user_question, qa_chain):
 
 def compare_documents(doc1_answer_stream, doc2_answer_stream, user_question):
     template = """
-    You are an experienced insurance advisor tasked with comparing the policy terms and conditions of two different insurance documents to determine if there are any differences in coverage for a specific scenario.
+    Je bent een ervaren verzekeringsadviseur met de taak om de polisvoorwaarden van twee verschillende verzekeringsdocumenten te vergelijken om te bepalen of er verschillen zijn in de dekking voor een specifiek scenario.
 
-    The analysis of the first document's coverage regarding the scenario: '{doc1_answer}'
+    De analyse van de dekking van het eerste document met betrekking tot het scenario: '{doc1_answer}'
 
-    The analysis of the second document's coverage regarding the scenario: '{doc2_answer}'
+    De analyse van de dekking van het tweede document met betrekking tot het scenario: '{doc2_answer}'
 
-    The original user question was: '{user_question}'
+    De oorspronkelijke vraag van de gebruiker was: '{user_question}'
 
-    Based on the two analyses provided, use the Socratic method to critically examine and compare the coverage offered by the two documents for this specific scenario. Engage in a thorough and rigorous dialogue, asking probing questions to identify any differences in coverage, exclusions, conditions, or limitations between the two documents. If the coverage is the same, state that as well, but ensure that your conclusion is supported by a comprehensive examination of all relevant factors.
+    Op basis van de twee gegeven analyses, gebruik de Socratische methode om de geboden dekking van de twee documenten voor dit specifieke scenario kritisch te onderzoeken en te vergelijken. Ga een grondige en rigoureuze dialoog aan, stel prikkelende vragen om eventuele verschillen in dekking, uitsluitingen, voorwaarden of beperkingen tussen de twee documenten te identificeren. Als de dekking hetzelfde is, vermeld dat dan, maar zorg ervoor dat je conclusie wordt ondersteund door een uitgebreid onderzoek van alle relevante factoren.
 
-    Provide a clear and concise conclusion summarizing your analysis and comparison of the two documents' coverage for the given scenario, ensuring that your conclusion is well-reasoned and supported by strong evidence from the analyses.
+    Geef een duidelijke en beknopte conclusie waarin je je analyse en vergelijking van de dekking van de twee documenten voor het gegeven scenario samenvat, en zorg ervoor dat je conclusie goed onderbouwd en ondersteund wordt door sterke bewijzen uit de analyses.
     """
 
     prompt = ChatPromptTemplate.from_template(template)
@@ -81,8 +85,33 @@ def compare_documents(doc1_answer_stream, doc2_answer_stream, user_question):
     doc2_answer = ''.join(doc2_answer_stream)
 
     # Perform comparison
+    compare_prompt = """
+    Je hebt de analyses van de dekkingen van twee verschillende polisdocumenten voor een specifiek scenario. Jouw taak is om een zeer grondige vergelijking te maken tussen deze twee analyses en een zo volledig mogelijke conclusie te trekken over eventuele verschillen of overeenkomsten in de dekking.
+
+    Gebruik de Socratische methode en stel jezelf kritische vragen om alle aspecten van de dekking te onderzoeken, zoals:
+
+    - Zijn er verschillen in de dekking voor het specifieke scenario?
+    - Zijn er verschillen in uitsluitingen of voorwaarden?
+    - Zijn er verschillen in dekking limieten of maximale uitkeringen?
+    - Zijn er verschillen in optionele dekkingen of modules die van invloed zijn?
+    - Zijn er andere factoren die van belang kunnen zijn voor de dekking in dit scenario?
+
+    Ga diep in op alle relevante details uit de analyses en laat geen enkel aspect onbesproken. Formuleer een volledig onderbouwde en goed gemotiveerde conclusie waarin je alle belangrijke overeenkomsten en verschillen behandelt.
+
+    Analyse document 1: '{doc1_answer}'
+
+    Analyse document 2: '{doc2_answer}'
+
+    Oorspronkelijke vraag van de gebruiker: '{user_question}'
+
+    Geef nu een zeer grondige vergelijking en een volledig onderbouwde conclusie over de verschillen of overeenkomsten in de dekking tussen deze twee documenten voor het gegeven scenario.
+    """
+
+    compare_prompt = ChatPromptTemplate.from_template(compare_prompt)
+
+    # Perform comparison
     llm = OpenAI(model_name="gpt-4", temperature=0, streaming=True)
-    chain = prompt | llm | StrOutputParser()
+    chain = compare_prompt | llm | StrOutputParser()
     return chain.stream({
         "doc1_answer": doc1_answer,
         "doc2_answer": doc2_answer,
@@ -90,13 +119,14 @@ def compare_documents(doc1_answer_stream, doc2_answer_stream, user_question):
     })
 
 def main():
-    st.title("Policy Document Comparison Tool")
+    st.set_page_config(page_title="Vergelijker Polisvoorwaarden")
+    st.title("Vergelijker Polisvoorwaarden")
 
     # File Upload
-    uploaded_files = st.file_uploader("Upload Policy Documents", accept_multiple_files=True)
+    uploaded_files = st.file_uploader("Upload Polisdocumenten", accept_multiple_files=True, type=["pdf"])
 
     if uploaded_files:
-        user_question = st.text_input("Enter your question about the policy coverage:")
+        user_question = st.text_input("Voer je vraag over de polisdekking in:")
 
         if user_question:
             doc1_answer_stream = load_and_process_document(uploaded_files[0], user_question)
