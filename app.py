@@ -24,6 +24,9 @@ def extract_text_from_pdf(file):
 def load_and_process_document(file, user_question):
     # Extract text from the document
     document_pages = extract_text_from_pdf(file)
+    
+    # Create a list of Document objects from the text
+    docs = [Document(page_content=page_text) for page_text in document_pages]
 
     # Split text into chunks
     text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
@@ -34,7 +37,7 @@ def load_and_process_document(file, user_question):
     vectorstore = FAISS.from_documents(texts, embeddings)
 
     # Create question-answering chain
-    llm = OpenAI(model_name="gpt-4-turbo-preview", streaming=True, callbacks=[get_openai_callback()])
+    llm = ChatOpenAI(model_name="gpt-4-turbo-preview", streaming=True, callbacks=[get_openai_callback()])
     qa_chain = load_qa_chain(llm, chain_type="stuff")
 
     # Perform similarity search and get relevant document chunks
