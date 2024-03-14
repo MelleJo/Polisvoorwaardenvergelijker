@@ -10,3 +10,4 @@ redis
 langchain-pinecone
 sentence_transformers
 faiss-cpu
+langchain_docstore
