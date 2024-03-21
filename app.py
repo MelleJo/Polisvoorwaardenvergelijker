@@ -69,7 +69,7 @@ def process_document(document_text, user_question, qa_chain):
     """
 
     prompt = ChatPromptTemplate.from_template(template)
-    answer_stream = qa_chain(prompt=prompt, question=user_question, context=document_text)
+    answer_stream = qa_chain({"input_documents": [document_text], "question": user_question}, prompt=prompt)
     return answer_stream
 
 def compare_documents(doc1_answer_stream, doc2_answer_stream, user_question):
