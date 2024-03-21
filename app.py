@@ -40,7 +40,7 @@ def process_document(document_path, user_question):
         document_text = " ".join([doc.page_content for doc in docs])
 
         template = """
-        Analyseer de vraag van de gebruiker: {user_question} en vergelijk vervolgens de volgende twee polisvoorwaarden {document_text_doc1} en {document_text_doc2} met elkaar en beantwoord de vraag van de gebruiker. 
+        Analyseer de vraag van de gebruiker: '{user_question}' en vergelijk de inhoud van de opgehaalde pagina's van de polisvoorwaarden {document_text_doc1} en {document_text_doc2} met elkaar. Beantwoord de vraag van de gebruiker met een korte, duidelijke en relevante antwoord.
         """
         
         prompt = ChatPromptTemplate.from_template(template)
