@@ -59,7 +59,8 @@ def main():
 
     user_question = st.text_input("Wat wil je graag weten?")
 
-    if user_question:
+    if doc1 and doc2 and user_question:
+       selected_document_path = doc1 and doc2
        answer = process_document(selected_document_path, user_question)
        st.write(answer)
     
