@@ -1,77 +1,53 @@
-import streamlit as st
-from io import BytesIO
-from PyPDF2 import PdfReader
-from langchain.agents import Tool, initialize_agent, AgentType
+from langchain.agents import Tool
 from langchain.chains import RetrievalQA
+from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.vectorstores import FAISS
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_text_splitters import CharacterTextSplitter
-from langchain.docstore.document import Document
 from pydantic import BaseModel, Field
+from langchain.agents import AgentType, initialize_agent
+
+class DocumentInput(BaseModel):
+    question: str = Field()
+
 
 llm = ChatOpenAI(temperature=0, model="gpt-3.5-turbo-0613")
 
-st.title("Document Comparison Tool")
-doc1 = st.file_uploader("Upload the first document (PDF):", type="pdf", key="doc1")
-doc2 = st.file_uploader("Upload the second document (PDF):", type="pdf", key="doc2")
-question = st.text_input("Enter your question for comparison:")
+tools = []
+files = [
+    doc1 = st.FileUploader(label=file["name"], key=file["name"])
+    doc2 = st.FileUploader(label=file["name"], key=file["name"])
 
-# Adapted function to extract text from an uploaded PDF in memory
-def extract_text_from_pdf_by_page(uploaded_file):
-    pages_text = []
-    if uploaded_file is not None:
-        reader = PdfReader(BytesIO(uploaded_file.getvalue()))
-        for page in reader.pages:
-            text = page.extract_text()
-            if text:
-                pages_text.append(text)
-    return pages_text
+]
 
-# Updated function to process an uploaded document using the adapted text extraction logic
-def process_uploaded_document(uploaded_file):
-    pages_text = extract_text_from_pdf_by_page(uploaded_file)
-    if pages_text:
-        document_text = " ".join(pages_text)
-        embeddings = OpenAIEmbeddings()
-        document = Document(page_content=document_text)
-        retriever = FAISS.from_documents([document], embeddings).as_retriever()
-        return retriever
-    return None
+for file in files:
+    loader = PyPDFLoader(file[doc1, doc2])
+    pages = loader.load_and_split()
+    text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
+    docs = text_splitter.split_documents(pages)
+    embeddings = OpenAIEmbeddings()
+    retriever = FAISS.from_documents(docs, embeddings).as_retriever()
 
-
-def run_comparison_agent(question, tools):
-    if question and tools:
-        class DocumentInput(BaseModel):
-            question: str
-
-        agent = initialize_agent(
-            agent=AgentType.OPENAI_FUNCTIONS,
-            tools=tools,
-            llm=llm,
-            verbose=True,
+    # Wrap retrievers in a Tool
+    tools.append(
+        Tool(
+            args_schema=DocumentInput,
+            name=file["name"],
+            description=f"useful when you want to answer questions about {file['name']}",
+            func=RetrievalQA.from_chain_type(llm=llm, retriever=retriever),
         )
-        response = agent({"input": question})
-        return response
-    return "Please provide a question and upload both documents."
+    )
 
-if st.button("Compare Documents"):
-    tools = []
-    documents = [(doc1, "doc1"), (doc2, "doc2")]
+llm = ChatOpenAI(
+    temperature=0,
+    model="gpt-3.5-turbo-0613",
+)
 
-    for uploaded_file, name in documents:
-        retriever = process_uploaded_document(uploaded_file)
-        if retriever:
-            tools.append(
-                Tool(
-                    args_schema=DocumentInput,
-                    name=name,
-                    description=f"Useful when you want to answer questions about {name}",
-                    func=lambda question: RetrievalQA.from_chain_type(llm=llm, retriever=retriever)(question),
-                )
-            )
+agent = initialize_agent(
+    agent=AgentType.OPENAI_FUNCTIONS,
+    tools=tools,
+    llm=llm,
+    verbose=True,
+)
 
-    if len(tools) == 2 and question:
-        result = run_comparison_agent(question, tools)
-        st.write("Comparison Result:", result)
-    else:
-        st.error("Please upload both documents and enter a question.")
+agent({"input": "did alphabet or tesla have more revenue?"})
