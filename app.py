@@ -36,7 +36,7 @@ def load_and_process_document(file, user_question):
     texts = text_splitter.split_documents(docs)
 
     # Create vector store
-    embeddings = None  # Set to None for using OpenAI's pre-trained embeddings
+    embeddings = OpenAIEmbeddings()
     vectorstore = FAISS.from_documents(texts, embeddings)
 
     # Create question-answering chain
