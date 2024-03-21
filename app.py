@@ -12,15 +12,15 @@ from langchain.agents import AgentType, initialize_agent
 from PyPDF2 import PdfReader
 
 
-def extract_text_from_pdf_by_page(file_path):
+def extract_text_from_pdf_by_page(uploaded_file):
     pages_text = []
-    with open(file_path, 'rb') as file:
-        reader = PdfReader(file)
-        for page in reader.pages:
-            text = page.extract_text()
-            if text:
-                pages_text.append(text)
+    reader = PdfReader(uploaded_file)
+    for page in reader.pages:
+        text = page.extract_text()
+        if text:
+            pages_text.append(text)
     return pages_text
+
 
 def process_document(document_path, user_question):
     with st.spinner('Denken...'):
