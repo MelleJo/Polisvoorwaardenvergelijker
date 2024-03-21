@@ -1,6 +1,7 @@
-import os
+# Import necessary libraries
 import streamlit as st
 from PyPDF2 import PdfReader
+from io import BytesIO
 from langchain.agents import Tool, initialize_agent
 from langchain.chains import RetrievalQA
 from langchain_community.vectorstores import FAISS
@@ -13,16 +14,20 @@ from langchain.agents import AgentType
 class DocumentInput(BaseModel):
     question: str = Field()
 
-# Initialize the large language model
-llm = ChatOpenAI(temperature=0, model="gpt-3.5-turbo-0613")
+# Initialize the large language model with GPT-4 and API key from st.secrets
+llm = ChatOpenAI(
+    temperature=0,
+    model="gpt-4-turbo-preview",
+    api_key=st.secrets["OPENAI_API_KEY"]
+)
 
-def load_and_prepare_document(file_path):
-    """Loads, splits, and prepares a document for retrieval using PyPDF2."""
-    reader = PdfReader(file_path)
+def load_and_prepare_document(uploaded_file):
+    """Loads, splits, and prepares a document for retrieval using PyPDF2 from an uploaded file."""
+    reader = PdfReader(BytesIO(uploaded_file.getvalue()))
     pages = [page.extract_text() for page in reader.pages if page.extract_text() is not None]
     text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
     docs = text_splitter.split_documents(pages)
-    embeddings = OpenAIEmbeddings()
+    embeddings = OpenAIEmbeddings(api_key=st.secrets["OPENAI_API_KEY"])
     retriever = FAISS.from_documents(docs, embeddings).as_retriever()
     return retriever
 
@@ -36,19 +41,19 @@ def compare_documents(question, tools):
     )
     return agent({"input": question})
 
-# Streamlit UI
+# Streamlit UI for uploading documents
 st.title("Insurance Policy Document Comparison")
 
-doc1_path = st.text_input("Enter path to first insurance policy document (PDF):")
-doc2_path = st.text_input("Enter path to second insurance policy document (PDF):")
+doc1 = st.file_uploader("Upload first insurance policy document (PDF):", type=['pdf'])
+doc2 = st.file_uploader("Upload second insurance policy document (PDF):", type=['pdf'])
 question = st.text_input("Enter your question:")
 
 if st.button("Compare Documents"):
-    if doc1_path and doc2_path and question:
+    if doc1 and doc2 and question:
         tools = []
 
         # Process the first document
-        retriever1 = load_and_prepare_document(doc1_path)
+        retriever1 = load_and_prepare_document(doc1)
         tools.append(
             Tool(
                 args_schema=DocumentInput,
@@ -59,7 +64,7 @@ if st.button("Compare Documents"):
         )
 
         # Process the second document
-        retriever2 = load_and_prepare_document(doc2_path)
+        retriever2 = load_and_prepare_document(doc2)
         tools.append(
             Tool(
                 args_schema=DocumentInput,
@@ -73,5 +78,4 @@ if st.button("Compare Documents"):
         result = compare_documents(question, tools)
         st.write("Comparison Result:", result)
     else:
-        st.write("Please provide paths to both documents and a question.")
-
+        st.write("Please upload both documents and enter a question.")
