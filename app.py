@@ -44,7 +44,7 @@ def load_and_process_document(file, user_question):
     qa_chain = load_qa_chain(llm, chain_type="stuff")
 
     # Perform similarity search and get relevant document chunks
-    docs = [Document(page_content=text) for text in texts]
+    docs = [Document(page_content=str(text)) for text in texts]
     docs = vectorstore.similarity_search(user_question, k=len(docs))
     document_text = " ".join([doc.page_content for doc in docs])
 
