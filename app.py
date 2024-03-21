@@ -40,7 +40,7 @@ def load_and_process_document(file, user_question):
     vectorstore = FAISS.from_documents(texts, embeddings)
 
     # Create question-answering chain
-    llm = ChatOpenAI(model_name="gpt-4-turbo-preview", streaming=True, callbacks=[get_openai_callback()])
+    llm = ChatOpenAI(model_name="gpt-4-turbo-preview", streaming=True)
     qa_chain = load_qa_chain(llm, chain_type="stuff")
 
     # Perform similarity search and get relevant document chunks
