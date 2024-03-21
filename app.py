@@ -35,12 +35,14 @@ def process_uploaded_document(uploaded_file):
     if pages_text:
         # Combine all extracted text into one large string for embedding and retrieval
         document_text = " ".join(pages_text)
-        text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
-        docs = text_splitter.split_documents([document_text])  # Adjusted for list input
+
+        # Directly use the combined document text for embeddings without using CharacterTextSplitter
         embeddings = OpenAIEmbeddings()
-        retriever = FAISS.from_documents(docs, embeddings).as_retriever()
+        # Note: Adjust FAISS.from_documents to handle a single string per document if necessary
+        retriever = FAISS.from_documents([document_text], embeddings).as_retriever()
         return retriever
     return None
+
 
 def run_comparison_agent(question, tools):
     if question and tools:
