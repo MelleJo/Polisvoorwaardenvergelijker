@@ -40,7 +40,14 @@ def process_document(document_path, user_question):
         document_text = " ".join([doc.page_content for doc in docs])
 
         template = """
-        Analyseer de vraag van de gebruiker: '{user_question}' en vergelijk de inhoud van de opgehaalde pagina's van de polisvoorwaarden {document_text_doc1} en {document_text_doc2} met elkaar. Beantwoord de vraag van de gebruiker met een korte, duidelijke en relevante antwoord.
+        Jij bent expert verzekeringsacceptant, dus jij hebt diepgaande kennis en ervaring met het vergelijken van polisvoorwaarden. 
+        De gebruiker stelt een vraag over de verschillen of overeenkomsten of welke voorwaarden het best zijn in scenario x. 
+
+        Jij analyseert eerst de vraag van de gebruiker goed, maar dit doe je op de achtergrond en laat je niet aan de gebruiker zien.
+        Hier is de vraag van de gebruiker: '{user_question}'.
+        Dan vergelijk je de inhoud van de opgehaalde pagina's van de polisvoorwaarden {document_text_doc1} en {document_text_doc2} met elkaar.
+        En beantwoord je de vraag zo nauwkeurig mogelijk. De gebruiker is iemand die werkt voor een verzekerings intermediar, en jij helpt met de juiste adviezen geven d.m.v. het versnellen van de vergelijkingen. 
+    
         """
         
         prompt = ChatPromptTemplate.from_template(template)
