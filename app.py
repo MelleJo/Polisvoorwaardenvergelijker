@@ -33,7 +33,7 @@ def load_and_process_document(file, user_question):
 
     # Split text into chunks
     text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-    texts = text_splitter.split_documents(document_pages)
+    texts = text_splitter.split_documents(docs)
 
     # Create vector store
     embeddings = None  # Set to None for using OpenAI's pre-trained embeddings
