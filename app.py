@@ -10,6 +10,8 @@ from langchain_text_splitters import CharacterTextSplitter
 from pydantic import BaseModel, Field
 from langchain.agents import AgentType, initialize_agent
 from PyPDF2 import PdfReader
+from langchain.text_splitter import CharacterTextSplitter
+from langchain_core.prompts import ChatPromptTemplate
 
 
 def extract_text_from_pdf_by_page(uploaded_file):
