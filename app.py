@@ -1,81 +1,77 @@
-import streamlit as st
 import os
+import streamlit as st
 from PyPDF2 import PdfReader
-from langchain.docstore.document import Document
-from langchain.document_comparators import CompareDocuments, CompareDocumentsSummary
-from langchain.document_loaders import PyPDFLoader
-from langchain_openai import ChatOpenAI
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import ChatPromptTemplate
+from langchain.agents import Tool, initialize_agent
+from langchain.chains import RetrievalQA
+from langchain_community.vectorstores import FAISS
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_text_splitters import CharacterTextSplitter
+from pydantic import BaseModel, Field
+from langchain.agents import AgentType
 
-BASE_DIR = os.path.join(os.getcwd(), "preloaded_pdfs", "PolisvoorwaardenVA")
+# Define a Pydantic model for the input
+class DocumentInput(BaseModel):
+    question: str = Field()
 
-def extract_text_from_pdf_by_page(file_path):
-    pages_text = []
-    with open(file_path, 'rb') as file:
-        reader = PdfReader(file)
-        for page in reader.pages:
-            text = page.extract_text()
-            if text:
-                pages_text.append(text)
-    return pages_text
+# Initialize the large language model
+llm = ChatOpenAI(temperature=0, model="gpt-3.5-turbo-0613")
 
-def process_document(document_path):
-    loader = PyPDFLoader(document_path)
-    return loader.load()
+def load_and_prepare_document(file_path):
+    """Loads, splits, and prepares a document for retrieval using PyPDF2."""
+    reader = PdfReader(file_path)
+    pages = [page.extract_text() for page in reader.pages if page.extract_text() is not None]
+    text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
+    docs = text_splitter.split_documents(pages)
+    embeddings = OpenAIEmbeddings()
+    retriever = FAISS.from_documents(docs, embeddings).as_retriever()
+    return retriever
 
-def compare_documents(doc1, doc2, user_question):
-    compare_docs = CompareDocuments()
-    comparison_summary = CompareDocumentsSummary()
+def compare_documents(question, tools):
+    """Compares documents based on a question and returns the result."""
+    agent = initialize_agent(
+        agent=AgentType.OPENAI_FUNCTIONS,
+        tools=tools,
+        llm=llm,
+        verbose=True,
+    )
+    return agent({"input": question})
 
-    prompt_template = """
-    Given the following documents:
-    
-    Document 1: {doc_1}
-    Document 2: {doc_2}
+# Streamlit UI
+st.title("Insurance Policy Document Comparison")
 
-    And the user's question: {question}
+doc1_path = st.text_input("Enter path to first insurance policy document (PDF):")
+doc2_path = st.text_input("Enter path to second insurance policy document (PDF):")
+question = st.text_input("Enter your question:")
 
-    Provide a detailed comparison of the two documents, highlighting the similarities and differences in coverage, exclusions, conditions, and limitations related to the user's question. Use the Socratic method to thoroughly investigate all relevant factors, and provide a well-reasoned conclusion summarizing the key differences and similarities in coverage between the two documents for the given scenario.
-    """
+if st.button("Compare Documents"):
+    if doc1_path and doc2_path and question:
+        tools = []
 
-    prompt = ChatPromptTemplate.from_template(prompt_template)
-    comparison_result = compare_docs(doc1, doc2, prompt=prompt)
-    summary = comparison_summary(comparison_result, question=user_question)
+        # Process the first document
+        retriever1 = load_and_prepare_document(doc1_path)
+        tools.append(
+            Tool(
+                args_schema=DocumentInput,
+                name="doc1",
+                description="Insurance policy document 1",
+                func=RetrievalQA.from_chain_type(llm=llm, retriever=retriever1),
+            )
+        )
 
-    llm = ChatOpenAI(model_name="gpt-4", temperature=0, streaming=True)
-    chain = prompt | llm | StrOutputParser()
-    return chain.stream({
-        "doc_1": doc1.page_content,
-        "doc_2": doc2.page_content,
-        "question": user_question
-    })
+        # Process the second document
+        retriever2 = load_and_prepare_document(doc2_path)
+        tools.append(
+            Tool(
+                args_schema=DocumentInput,
+                name="doc2",
+                description="Insurance policy document 2",
+                func=RetrievalQA.from_chain_type(llm=llm, retriever=retriever2),
+            )
+        )
 
-def get_documents(category):
-    category_path = os.path.join(BASE_DIR, category)
-    return sorted([os.path.join(category_path, doc) for doc in os.listdir(category_path) if doc.endswith('.pdf')])
+        # Compare the documents
+        result = compare_documents(question, tools)
+        st.write("Comparison Result:", result)
+    else:
+        st.write("Please provide paths to both documents and a question.")
 
-def display_search_results(search_results):
-    if not search_results:
-        st.write("Geen documenten gevonden.")
-        return
-
-    selected_title1 = st.selectbox("Selecteer het eerste document:", search_results, index=0)
-    selected_title2 = st.selectbox("Selecteer het tweede document:", search_results, index=1)
-
-    user_question = st.text_input("Stel een vraag over de polisvoorwaarden:")
-    if user_question:
-        document1 = process_document(selected_title1)
-        document2 = process_document(selected_title2)
-        comparison_stream = compare_documents(document1, document2, user_question)
-        st.write_stream(comparison_stream)
-
-def main():
-    st.title("Polisvoorwaarden Vergelijker")
-    categories = sorted(next(os.walk(BASE_DIR))[1])
-    selected_category = st.selectbox("Kies een categorie:", categories)
-    document_paths = get_documents(selected_category)
-    display_search_results(document_paths)
-
-if __name__ == "__main__":
-    main()
