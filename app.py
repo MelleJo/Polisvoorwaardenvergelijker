@@ -6,48 +6,60 @@ from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_text_splitters import CharacterTextSplitter
 from pydantic import BaseModel, Field
 from langchain.agents import AgentType, initialize_agent
-
-class DocumentInput(BaseModel):
-    question: str = Field()
+from PyPDF2 import PdfReader
 
 
-llm = ChatOpenAI(temperature=0, model="gpt-3.5-turbo-0613")
+def extract_text_from_pdf_by_page(file_path):
+    pages_text = []
+    with open(file_path, 'rb') as file:
+        reader = PdfReader(file)
+        for page in reader.pages:
+            text = page.extract_text()
+            if text:
+                pages_text.append(text)
+    return pages_text
 
-tools = []
-files = [
-    doc1 = st.FileUploader(label=file["name"], key=file["name"])
-    doc2 = st.FileUploader(label=file["name"], key=file["name"])
+def process_document(document_path, user_question):
+    with st.spinner('Denken...'):
+        # Extract text from the document
+        document_pages = extract_text_from_pdf_by_page(document_path)
+        if not document_pages or all(page.strip() == "" for page in document_pages):
+        
+            st.error("No valid text extracted from the document. Please check the document format or content.")
+            return
 
-]
+        embeddings = OpenAIEmbeddings()
+        knowledge_base = FAISS.from_texts(document_pages, embeddings)
+        docs = knowledge_base.similarity_search(user_question)
+        document_text = " ".join([doc.page_content for doc in docs])
 
-for file in files:
-    loader = PyPDFLoader(file[doc1, doc2])
-    pages = loader.load_and_split()
-    text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
-    docs = text_splitter.split_documents(pages)
-    embeddings = OpenAIEmbeddings()
-    retriever = FAISS.from_documents(docs, embeddings).as_retriever()
+        template = """
+        Analyseer de vraag van de gebruiker: {user_question} en vergelijk vervolgens de volgende twee polisvoorwaarden {document_text_doc1} en {document_text_doc2} met elkaar en beantwoord de vraag van de gebruiker. 
+        """
+        
+        prompt = ChatPromptTemplate.from_template(template)
 
-    # Wrap retrievers in a Tool
-    tools.append(
-        Tool(
-            args_schema=DocumentInput,
-            name=file["name"],
-            description=f"useful when you want to answer questions about {file['name']}",
-            func=RetrievalQA.from_chain_type(llm=llm, retriever=retriever),
-        )
-    )
+        
+        # Perform similarity search
+        llm = ChatOpenAI(api_key=st.secrets["OPENAI_API_KEY"], model="gpt-4-turbo-preview", temperature=0, streaming=True)
+        chain = prompt | llm | StrOutputParser() 
+        return chain.stream({
+            "document_text_doc1": document_text,
+            "document_text_doc2": document_text,
+            "user_question": user_question,
+        })
 
-llm = ChatOpenAI(
-    temperature=0,
-    model="gpt-3.5-turbo-0613",
-)
+def main():
+    st.title("Polisvoorwaardenvergelijker - testversie 0.1.")
+    doc1 = st.file_uploader("Upload Insurance Policy Document 1", type=['txt', 'pdf'])
+    doc2 = st.file_uploader("Upload Insurance Policy Document 2", type=['txt', 'pdf'])
 
-agent = initialize_agent(
-    agent=AgentType.OPENAI_FUNCTIONS,
-    tools=tools,
-    llm=llm,
-    verbose=True,
-)
+    user_question = st.text_input("Wat wil je graag weten?")
 
-agent({"input": "did alphabet or tesla have more revenue?"})
+    if user_question:
+       answer = process_document(selected_document_path, user_question)
+       st.write(answer)
+    
+    
+if __name__ == "__main__":
+    main()
