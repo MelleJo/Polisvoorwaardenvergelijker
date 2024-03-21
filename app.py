@@ -33,13 +33,10 @@ def extract_text_from_pdf_by_page(uploaded_file):
 def process_uploaded_document(uploaded_file):
     pages_text = extract_text_from_pdf_by_page(uploaded_file)
     if pages_text:
-        # Combine all extracted text into one large string for embedding and retrieval
         document_text = " ".join(pages_text)
-
-        # Directly use the combined document text for embeddings without using CharacterTextSplitter
         embeddings = OpenAIEmbeddings()
-        # Note: Adjust FAISS.from_documents to handle a single string per document if necessary
-        retriever = FAISS.from_documents([document_text], embeddings).as_retriever()
+        document = Document(page_content=document_text)
+        retriever = FAISS.from_documents([document], embeddings).as_retriever()
         return retriever
     return None
 
