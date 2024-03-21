@@ -6,6 +6,7 @@ from langchain.chains import RetrievalQA
 from langchain_community.vectorstores import FAISS
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_text_splitters import CharacterTextSplitter
+from langchain.docstore.document import Document
 from pydantic import BaseModel, Field
 
 class DocumentInput(BaseModel):
