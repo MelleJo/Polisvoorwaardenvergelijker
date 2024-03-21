@@ -1,8 +1,8 @@
 import streamlit as st
 from PyPDF2 import PdfReader
 from io import BytesIO
-from langchain.openai import ChatOpenAI, OpenAIEmbeddings
-from langchain.chains import RetrievalQA
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_chains import RetrievalQA
 from langchain_community.vectorstores import FAISS
 from pydantic import BaseModel, Field
 
