@@ -9,9 +9,6 @@ from langchain_text_splitters import CharacterTextSplitter
 from langchain.docstore.document import Document
 from pydantic import BaseModel, Field
 
-class DocumentInput(BaseModel):
-    question: str = Field()
-
 llm = ChatOpenAI(temperature=0, model="gpt-3.5-turbo-0613")
 
 st.title("Document Comparison Tool")
@@ -44,6 +41,9 @@ def process_uploaded_document(uploaded_file):
 
 def run_comparison_agent(question, tools):
     if question and tools:
+        class DocumentInput(BaseModel):
+            question: str
+
         agent = initialize_agent(
             agent=AgentType.OPENAI_FUNCTIONS,
             tools=tools,
@@ -66,7 +66,7 @@ if st.button("Compare Documents"):
                     args_schema=DocumentInput,
                     name=name,
                     description=f"Useful when you want to answer questions about {name}",
-                    func=RetrievalQA.from_chain_type(llm=llm, retriever=retriever),
+                    func=lambda question: RetrievalQA.from_chain_type(llm=llm, retriever=retriever)(question),
                 )
             )
 
