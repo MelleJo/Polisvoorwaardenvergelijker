@@ -25,11 +25,16 @@ def load_and_prepare_document(uploaded_file):
     """Loads, splits, and prepares a document for retrieval using PyPDF2 from an uploaded file."""
     reader = PdfReader(BytesIO(uploaded_file.getvalue()))
     pages = [page.extract_text() for page in reader.pages if page.extract_text() is not None]
+
+    # Assuming CharacterTextSplitter expects a list of strings (direct text) without needing a 'page_content' attribute
+    # Directly use 'pages' as it now holds a list of text extracted from each PDF page.
     text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
-    docs = text_splitter.split_documents(pages)
+    docs = text_splitter.split_documents(pages)  # Directly pass the list of text chunks
+
     embeddings = OpenAIEmbeddings(api_key=st.secrets["OPENAI_API_KEY"])
     retriever = FAISS.from_documents(docs, embeddings).as_retriever()
     return retriever
+
 
 def compare_documents(question, tools):
     """Compares documents based on a question and returns the result."""
